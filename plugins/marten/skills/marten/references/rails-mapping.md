@@ -11,7 +11,7 @@ For testing-specific porting (handler specs, system tests, fixtures → factorie
 - [Project organization — apps](#project-organization)
 - [Handlers — prefer generic handlers](#handlers)
 - [Authentication](#authentication)
-- [Models](#models) — polymorphic, delegated types, concerns, callbacks, scopes
+- [Models](#models) — polymorphic, delegated types, concerns, callbacks, scopes, `Current.user` replacement, `signed_id` notes
 - [Forms](#forms)
 - [Routing](#routing)
 - [Templates](#templates)
@@ -593,6 +593,77 @@ def self.create_with_defaults!(name : String) : Account
   # ...
 end
 ```
+
+#### Enum-generated scopes AND predicates (no Marten equivalent macro)
+
+Rails `enum :foo, %w[a b c]` auto-generates one filter scope per value (`Model.a`, `Model.b`, `Model.c`), one predicate per value (`record.a?`, `record.b?`), and bang-setters (`record.a!`). Marten has no enum macro — `field :foo, :string` is just a string column. For parity, declare each manually:
+
+```crystal
+# Rails: enum :role, %i[member administrator]
+scope :member        { filter(role: "member") }
+scope :administrator { filter(role: "administrator") }
+
+def member? : Bool
+  role == "member"
+end
+
+def administrator? : Bool
+  role == "administrator"
+end
+```
+
+For multi-value enums (e.g. `enum :theme, %w[black blue green magenta orange violet white], suffix: true`), use a macro loop to generate both the scope and the predicate in one go:
+
+```crystal
+{% for theme in %w[black blue green magenta orange violet white] %}
+  scope :{{theme.id}}_theme { filter(theme: {{theme}}) }
+
+  def {{theme.id}}_theme? : Bool
+    theme == {{theme}}
+  end
+{% end %}
+```
+
+`{{theme.id}}` makes the value an identifier so the names become `:black_theme` / `black_theme?`; `{{theme}}` keeps it as a string literal for the comparison value.
+
+Port the singular scope names that Rails enum generates (`Edit.revision`, not `Edit.revisions`; `Access.editor`, not `Access.editors`) — even though plural feels more idiomatic for a collection, the singular form is what matches the Rails API surface. Predicate skipping is not allowed even when "no caller exists today" — the model's predicate API is part of the surface the Rails app encodes through `enum`.
+
+#### Scopes inside `macro included` register correctly
+
+Unlike model lifecycle callbacks (`before_validation` silently no-ops from inside `macro included` — see [Concerns](#concerns)), the `scope` macro DOES register correctly when called from a concern's `macro included` block. Defining `scope :published { filter(published: true) }` inside a concern's `macro included` produces a working scope on the host model. This is because `scope` registers into `MODEL_SCOPES` constants on the host (via `@type` lookup at macro-expansion time), which works the same from any nesting depth, whereas lifecycle callbacks register into per-class state that gets clobbered.
+
+#### No Marten equivalent for Arel-based raw ORDER BY
+
+`scope :foo, -> { order(Arel.sql("…")) }` — Rails lets you inject raw SQL into the ORDER BY via `Arel.sql`. Marten's queryset `order` only accepts field names (`String | Symbol`), not raw expressions. The `filter(raw_predicate: "…")` escape hatch exists for WHERE clauses but not for ORDER. A Rails scope that depends on `Arel.sql` ordering (e.g. FTS5 `bm25(...)` ranking) has no clean Marten scope equivalent — the functionality has to live in a raw-SQL method instead.
+
+---
+
+### `Current.user` / fiber-local request state
+
+Rails `Current` (an `ActiveSupport::CurrentAttributes` subclass) gives any model code access to the request-scoped current user via `Current.user`. Marten has no fiber-local equivalent. Two patterns replace it:
+
+1. **Handler-side `current_user`** — an `AuthenticationHelpers` concern exposes `current_user`, `current_user!`, and `current?(user)` on every handler that includes it, pulling from `request.user` (set per-request by `MartenAuth::Middleware`).
+
+2. **Pass the comparison user explicitly to model methods.** Rails `user.current?` becomes `user.current?(other : User?)` — the model takes the user to compare against, since it can't reach back to the request:
+
+   ```crystal
+   def current?(other : User?) : Bool
+     return false if other.nil?
+     pk == other.pk
+   end
+   ```
+
+   Handler-side callers go through `AuthenticationHelpers#current?(user)`, which wraps the model method. Templates that need it consume a pre-computed boolean from the context (`context[:user_is_current] = current?(user)`) — Marten templates cannot call methods with arguments.
+
+The same pattern applies to any Rails model method that reaches for `Current.*`: in Marten, the comparison value comes in as an explicit argument.
+
+---
+
+### `signed_id` / `find_signed` — unported
+
+Rails `ActiveRecord::SignedId` (built into Rails 7+, wraps `ActiveSupport::MessageVerifier`) gives every model `signed_id(purpose:, expires_in:)` for generating expiring authenticated tokens, plus `Model.find_signed(token, purpose:)` to verify and look up. Marten has `Marten::Core::Signer` for the underlying signing primitive but no model-level convenience layer.
+
+Features that depend on this (e.g. transferable invite links, password-reset tokens with embedded user IDs) need a Crystal-side analog. Candidate for a `marten-signed-id` shard: ~30-50 lines wrapping `Marten::Core::Signer` with model class methods. Different mechanism from `marten-encoded-id` (which is reversible obfuscation for short slug-style PKs); signed IDs are expiring authenticated tokens.
 
 ---
 
