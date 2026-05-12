@@ -29,7 +29,7 @@ Don't try to derive Marten idiom from first principles when the mapping is docum
 
 4. **Schemas, not raw params.** `params.require(:foo).permit(...)` → `Marten::Schema` with typed fields. Schemas validate AND coerce; access values via `schema.validated_data["field"].as(String)`.
 
-5. **Check the gotchas before writing.** `rails-mapping.md` and `rails-testing.md` document specific compile-error and runtime traps that bite silently — polymorphic `Page` shadowing, `before_validation` vs `before_create`, `macro included` callback no-ops in model concerns, `request.turbo?` matching `*/*`, FTS5 tables not surviving spec setup, and so on. Consult them before writing polymorphic fields, model concerns, FTS-based search, or test scaffolding.
+5. **Check the gotchas before writing.** `rails-mapping.md` and `rails-testing.md` document specific compile-error and runtime traps that bite silently — polymorphic `Page` shadowing, `before_validation` vs `before_create`, `macro included` callback no-ops in model concerns, `scope` vs `def self.foo` (only the macro is chainable on related-set querysets), `request.turbo?` matching `*/*`, FTS5 tables not surviving spec setup, and so on. Consult them before writing polymorphic fields, model concerns, model scopes, FTS-based search, or test scaffolding.
 
 6. **Match the user's port granularity.** A user asking "port this controller" wants the handler + schema + template translation for that one resource, not a from-scratch app rebuild. A user asking "migrate this Rails app" wants project structure first, then components. Ask if the scope is ambiguous.
 
@@ -58,6 +58,7 @@ Watch for these when reading user-provided "porting attempts" or when about to w
 - `params["foo"]` parsing in the handler instead of a `Marten::Schema`.
 - `before_create` populating a `null: false` field (fires after validation — too late).
 - `macro included; before_validation :foo; end` inside a model concern (silently no-ops).
+- `def self.active; filter(status: "active"); end` (or any queryset-returning class method) instead of `scope :active { filter(status: "active") }`. Both let you write `Model.active`, but only the `scope` macro generates the matching `::Model::QuerySet` method, so `book.leaves.active` fails with "undefined method" on `def self.`. Use `def self.` only for finder/factory helpers that return a record (or raise), not a queryset.
 - Polymorphic `to:` list with a single element (won't compile) or a `::`-prefixed entry (parse error).
 - Top-level model named `Page` (shadowed by Marten's `::<Model>::Page` paginators).
 - `{% csrf_token %}` in a form (emits the raw token; use `{% csrf_input %}` for a hidden input).

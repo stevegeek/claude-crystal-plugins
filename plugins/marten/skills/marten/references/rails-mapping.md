@@ -11,7 +11,7 @@ For testing-specific porting (handler specs, system tests, fixtures → factorie
 - [Project organization — apps](#project-organization)
 - [Handlers — prefer generic handlers](#handlers)
 - [Authentication](#authentication)
-- [Models](#models) — polymorphic, delegated types, concerns, callbacks
+- [Models](#models) — polymorphic, delegated types, concerns, callbacks, scopes
 - [Forms](#forms)
 - [Routing](#routing)
 - [Templates](#templates)
@@ -543,6 +543,56 @@ end
 ### `before_validation` vs `before_create` for `null: false` fields
 
 If a callback populates a `null: false` field, use **`before_validation`, not `before_create`**. Marten runs validation before save, so `before_create` (which fires after validation) is too late — validation already failed on the null field.
+
+### Scopes
+
+**Use the `scope` macro, NOT `def self.foo`.** Both let you write `Model.foo`, but only `scope` makes the method chainable on related-set querysets like `book.leaves.active`.
+
+Rails:
+
+```ruby
+class Leaf < ApplicationRecord
+  scope :active,  -> { where(status: "active") }
+  scope :trashed, -> { where(status: "trashed") }
+end
+
+book.leaves.active.find_by(id: leaf_id)   # chainable on the association
+```
+
+Marten:
+
+```crystal
+class Leaf < Marten::Model
+  scope :active  { filter(status: "active") }
+  scope :trashed { filter(status: "trashed") }
+end
+
+book.leaves.active.get(id: leaf_id)   # chainable on the reverse relation
+```
+
+`scope :name { ... }` generates BOTH a class method (`Leaf.active`) AND a method on the per-model `::Leaf::QuerySet` class. `def self.active` only generates the class method — calls on `book.leaves.active` fail with "undefined method".
+
+Parameterised scopes use a block argument:
+
+```crystal
+scope :by_author_id { |author_id| filter(author_id: author_id) }
+```
+
+Default scope:
+
+```crystal
+scope :published { filter(published: true) }
+default_scope { filter(published: true) }    # applies to all queries
+Post.unscoped                                # bypasses default_scope
+```
+
+**When to keep `def self.foo` instead.** For factory / finder helpers that return a concrete record (or raise) rather than a queryset, `def self.` is correct — chainability doesn't apply:
+
+```crystal
+def self.create_with_defaults!(name : String) : Account
+  # ...
+end
+```
 
 ---
 
