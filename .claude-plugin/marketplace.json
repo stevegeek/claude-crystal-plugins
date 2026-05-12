@@ -1,0 +1,17 @@
+{
+  "name": "stevegeek-crystal-marketplace",
+  "owner": {
+    "name": "Stephen"
+  },
+  "metadata": {
+    "description": "Marketplace for Crystal language skills"
+  },
+  "plugins": [
+    {
+      "name": "marten",
+      "source": "./plugins/marten",
+      "description": "Skill for the Marten web framework (Crystal) - models, handlers, schemas, migrations, templates, and Rails-to-Marten porting guidance. Targets Marten 0.7.",
+      "version": "0.1.0"
+    }
+  ]
+}

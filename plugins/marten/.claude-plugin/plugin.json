@@ -1,0 +1,9 @@
+{
+  "name": "marten",
+  "version": "0.1.0",
+  "description": "Skill for the Marten web framework (Crystal) - Django-shaped MVC with ORM, handlers, schemas, templates, and migrations. Covers Marten 0.7.",
+  "author": {
+    "name": "Stephen",
+    "url": "https://github.com/stevegeek"
+  }
+}
