@@ -80,6 +80,16 @@ References cover:
 - **cli.md** - `marten` CLI, generators, management commands, custom commands
 - **testing.md** - spec setup, fixtures, test client
 - **gotchas.md** - common Crystal-specific surprises
+- **rails-mapping.md** - Rails-idiom → Marten-idiom translation recipes (apps, handlers, auth, models, forms, templates, active storage, search, jobs)
+- **rails-testing.md** - porting Rails tests (handler tier via `Marten::Spec::Client`, system tier via LuckyFlow)
+
+## Agents
+
+### rails-to-marten-porter
+
+Ports Rails code to idiomatic Marten 0.7. Scopes the work into Marten apps first, prefers generic handlers (`Marten::Handlers::RecordList/Create/Update/Delete`) over manual ones, replaces strong params with `Marten::Schema`, and reaches for the `marten-auth` shard over hand-rolled session/cookie/bcrypt. Loads `rails-mapping.md` and `rails-testing.md` on demand and flags the silent compile-error / runtime gotchas (polymorphic `Page` shadowing, `before_validation` vs `before_create`, `macro included` callback no-ops, `request.turbo?` matching `*/*`, etc.) before they bite.
+
+Trigger phrases: "port this Rails X to Marten", "translate this controller/model/view", "what's the Marten equivalent of Y", "migrate this Rails app to Crystal", "port these Rails tests".
 
 ## Quick example
 

@@ -30,8 +30,10 @@ Pull only the file relevant to the task — references are loaded on demand to k
 | `marten` CLI, generators, management commands, custom commands | `references/cli.md` |
 | Testing — spec setup, fixtures, test client | `references/testing.md` |
 | Common gotchas + Crystal-specific surprises | `references/gotchas.md` |
+| Porting from Rails — idiom mapping (apps, handlers, auth, models, forms, templates, active storage, …) | `references/rails-mapping.md` |
+| Porting Rails tests — handler tier + LuckyFlow system tier | `references/rails-testing.md` |
 
-If the user is porting from Rails specifically, ALSO consult `~/work/apps/crystal/RAILS_TO_MARTEN.md` for translation recipes; if they're working in `~/work/apps/crystal/marten-writebook/`, consult `STATUS.md` for project-specific state.
+If the user is porting from Rails specifically, `rails-mapping.md` and `rails-testing.md` cover translation recipes for the common idioms. The `rails-to-marten-porter` agent in this plugin wraps both for guided port work.
 
 ## Hard rules
 
