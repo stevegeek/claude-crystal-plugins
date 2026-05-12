@@ -47,7 +47,7 @@ When advising on dependency / pattern choices for a port:
 - **WebSockets / Action Cable:** `cable-cr/cable` + a `marten-cable` integration shard.
 - **Hotwire / Turbo Streams:** `treagod/marten-turbo`.
 - **Encoded IDs (slug-style PKs):** `marten-encoded-id` shard.
-- **Signed IDs (expiring authenticated tokens):** No Marten analog out of the box. Rails features using `record.signed_id(purpose:, expires_in:)` / `Model.find_signed(token, purpose:)` (e.g. transferable invite links, password-reset tokens with embedded user IDs) need a Crystal-side wrapper around `Marten::Core::Signer`. Candidate for a future `marten-signed-id` workspace shard — flag and defer if encountered.
+- **Signed IDs (expiring authenticated tokens):** [`stevegeek/marten-signed-id`](https://github.com/stevegeek/marten-signed-id) shard wraps `Marten::Core::Signer` with purpose scoping + `Time::Span` expiry. Drop-in for Rails `ActiveRecord::SignedId`: `record.signed_id(purpose:, expires_in:)` / `Model.find_signed(token, purpose:)` / `Model.find_signed!`. Purposes are strings (Rails uses symbols) but semantics match.
 - **Testing — handler tier:** `Marten::Spec::Client` (in-process, fast). Default.
 - **Testing — system tier:** `lucky_flow` + `webdrivers.cr` (separate process, real Chrome). Only when the test genuinely exercises browser behaviour.
 - **Search:** SQLite FTS5 via raw-SQL migration + `Marten::DB::Connection.default.open { |db| db.query(...) }`. PostgreSQL `tsvector` via the same raw-SQL route.

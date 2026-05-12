@@ -659,11 +659,41 @@ The same pattern applies to any Rails model method that reaches for `Current.*`:
 
 ---
 
-### `signed_id` / `find_signed` — unported
+### `signed_id` / `find_signed` — via `marten-signed-id` shard
 
-Rails `ActiveRecord::SignedId` (built into Rails 7+, wraps `ActiveSupport::MessageVerifier`) gives every model `signed_id(purpose:, expires_in:)` for generating expiring authenticated tokens, plus `Model.find_signed(token, purpose:)` to verify and look up. Marten has `Marten::Core::Signer` for the underlying signing primitive but no model-level convenience layer.
+Rails `ActiveRecord::SignedId` (built into Rails 7+, wraps `ActiveSupport::MessageVerifier`) is ported by [`stevegeek/marten-signed-id`](https://github.com/stevegeek/marten-signed-id). Wraps `Marten::Core::Signer` (HMAC-SHA256 over Marten's `secret_key`) with purpose scoping and `Time::Span`-based expiry. API matches Rails apart from purpose strings being `String` rather than `Symbol`:
 
-Features that depend on this (e.g. transferable invite links, password-reset tokens with embedded user IDs) need a Crystal-side analog. Candidate for a `marten-signed-id` shard: ~30-50 lines wrapping `Marten::Core::Signer` with model class methods. Different mechanism from `marten-encoded-id` (which is reversible obfuscation for short slug-style PKs); signed IDs are expiring authenticated tokens.
+```crystal
+class User < Marten::Model
+  include MartenSignedId::ModelMixin
+end
+
+token = user.signed_id(purpose: "transfer", expires_in: 4.hours)
+User.find_signed(token, purpose: "transfer")   # => User? (nil on invalid / expired / purpose mismatch / record gone)
+User.find_signed!(token, purpose: "transfer")  # => User (raises MartenSignedId::InvalidSignedIdError)
+```
+
+Purpose strings act as domain separators — a token issued for `"transfer"` cannot be redeemed with `"password_reset"`, even though both use the same underlying signing key.
+
+Layer per-feature wrappers on top to mirror Rails' named-helper pattern (e.g. `User::Transferable#transfer_id` → expiring invite link):
+
+```crystal
+module Transferable
+  TRANSFER_LINK_EXPIRY_DURATION = 4.hours
+
+  macro included
+    def self.find_by_transfer_id(id : ::String) : self?
+      find_signed(id, purpose: "transfer")
+    end
+  end
+
+  def transfer_id : ::String
+    signed_id(purpose: "transfer", expires_in: TRANSFER_LINK_EXPIRY_DURATION)
+  end
+end
+```
+
+Different mechanism from `marten-encoded-id` (which is reversible obfuscation for short slug-style PKs); signed IDs are expiring authenticated tokens.
 
 ---
 
